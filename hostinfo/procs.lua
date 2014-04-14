@@ -1,0 +1,91 @@
+local HostInfo = require('./base').HostInfo
+
+local sigarCtx = require('/sigar').ctx
+local sigarutil = require('/base/util/sigar')
+
+local table = require('table')
+
+--[[ Process Info ]]--
+local ProcessInfo = HostInfo:extend()
+function ProcessInfo:initialize()
+  HostInfo.initialize(self)
+  local procs = sigarCtx:procs()
+
+  for i=1, #procs do
+    local pid = procs[i]
+    local proc = sigarCtx:proc(pid)
+    local obj = {}
+    obj.pid = pid
+
+    local t, msg = proc:exe()
+    if t then
+      local exe_fields = {
+        'name',
+        'cwd',
+        'root'
+      }
+      for _, v in pairs(exe_fields) do
+        obj['exe_' .. v] = t[v]
+      end
+    end
+
+    t, msg = proc:time()
+    if t then
+      local time_fields = {
+        'start_time',
+        'user',
+        'sys',
+        'total'
+      }
+      for _, v in pairs(time_fields) do
+        obj['time_' .. v] = t[v]
+      end
+    end
+
+    t, msg = proc:state()
+    if t then
+      local proc_fields = {
+        'name',
+        'ppid',
+        'priority',
+        'nice',
+        'threads'
+      }
+      for _, v in pairs(proc_fields) do
+        obj['state_' .. v] = t[v]
+      end
+    end
+
+    t, msg = proc:mem()
+    if t then
+      local memory_fields = {
+        'size',
+        'resident',
+        'share',
+        'major_faults',
+        'minor_faults',
+        'page_faults'
+      }
+      for _, v in pairs(memory_fields) do
+        obj['memory_' .. v] = t[v]
+      end
+    end
+
+    t, msg = proc:cred()
+    if t then
+      local cred_fields = {
+        'user',
+        'group',
+      }
+      for _,v in pairs(cred_fields) do
+        obj['cred_' .. v] = t[v]
+      end
+    end
+    table.insert(self._params, obj)
+  end
+end
+
+
+local exports = {}
+exports.ProcessInfo = ProcessInfo
+return exports

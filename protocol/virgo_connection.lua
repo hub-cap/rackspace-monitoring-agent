@@ -1,5 +1,5 @@
 local msg = require('./virgo_messages')
-local hostInfo = require('../host_info')
+local hostInfo = require('/hostinfo')
 local check = require('../check')
 local JSON = require('json')
 
