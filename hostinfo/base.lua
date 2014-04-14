@@ -30,6 +30,10 @@ function HostInfo:serialize()
   }
 end
 
+function HostInfo:run(callback)
+  callback(nil, self._params)
+end
+
 local exports = {}
 exports.HostInfo = HostInfo
 return exports
