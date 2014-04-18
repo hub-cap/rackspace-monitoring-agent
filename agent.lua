@@ -42,14 +42,9 @@ local Agent = Emitter:extend()
 local Confd = require('confd')
 
 function Agent:initialize(options, types)
-  if not options.stateDirectory then
-    options.stateDirectory = constants:get('DEFAULT_STATE_PATH')
-  end
-  logging.debug('Using state directory ' .. options.stateDirectory)
-  self._stateDirectory = options.stateDirectory
   self._config = virgo.config
   self._options = options
-  self._upgradesEnabled = true
+  self._upgradesEnabled = options.upgrades_enabled or false
   self._types = types or {}
   self._confd = Confd:new(options.confdDir, options.stateDirectory)
 end
@@ -104,13 +99,6 @@ end
 
 function Agent:connect(callback)
   local endpoints = self._config['endpoints']
-  local upgradeStr = self._config['upgrade']
-  if upgradeStr then
-    upgradeStr = upgradeStr:lower()
-    if upgradeStr == 'false' or upgradeStr == 'disabled' then
-      self._upgradesEnabled = false
-    end
-  end
 
   if #endpoints <= 0 then
     logging.error('no endpoints')
@@ -119,9 +107,6 @@ function Agent:connect(callback)
     end)
     return
   end
-
-  -- ReEnable upgrades when we have a handle on them
-  self._upgradesEnabled = false
 
   logging.info(fmt('Upgrades are %s', self._upgradesEnabled and 'enabled' or 'disabled'))
 
@@ -142,7 +127,6 @@ function Agent:connect(callback)
       self:emit('promote')
     end)
   end)
-
   self._streams:createConnections(endpoints, callback)
 end
 

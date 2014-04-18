@@ -1,5 +1,5 @@
 --[[
-Copyright 2012 Rackspace
+Copyright 2014 Rackspace
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -18,28 +18,31 @@ local logging = require('logging')
 local debugm = require('debug')
 local fmt = require('string').format
 
+local upgrade = require('/base/client/upgrade')
+
 local MonitoringAgent = require('./agent').Agent
 local Setup = require('./setup').Setup
 local constants = require('/constants')
 local protocolConnection = require('/protocol/virgo_connection')
 local agentClient = require('/client/virgo_client')
 local connectionStream = require('/client/virgo_connection_stream')
+local async = require('async')
 
 local argv = require("options")
   .usage('Usage: ')
   .describe("i", "use insecure tls cert")
-  .describe("i", "insecure")
   .describe("e", "entry module")
   .describe("x", "check to run")
-  .describe("s", "state directory path")
   .describe("c", "config file path")
   .describe("j", "object conf.d path")
   .describe("p", "pid file path")
   .describe("o", "skip automatic upgrade")
   .describe("d", "enable debug logging")
+  .describe("g", "enable upgrades")
   .alias({['o'] = 'no-upgrade'})
   .alias({['p'] = 'pidfile'})
   .alias({['j'] = 'confd'})
+  .alias({['g'] = 'upgrade'})
   .alias({['d'] = 'debug'})
   .describe("u", "setup")
   .alias({['u'] = 'setup'})
@@ -47,7 +50,7 @@ local argv = require("options")
   .alias({['U'] = 'username'})
   .describe("K", "apikey")
   .alias({['K'] = 'apikey'})
-  .argv("idonhU:K:e:x:p:c:j:s:n:k:u")
+  .argv("idgonhU:K:e:x:p:c:j:s:n:k:u")
 
 local Entry = {}
 
@@ -63,10 +66,6 @@ function Entry.run()
   end
 
   local options = {}
-
-  if argv.args.s then
-    options.stateDirectory = argv.args.s
-  end
 
   if argv.args.j then
     options.confdDir = argv.args.j
@@ -106,11 +105,32 @@ function Entry.run()
 
   local agent = MonitoringAgent:new(options, types)
 
-  if not argv.args.u then
-    return agent:start(options)
+  options.upgrades_enabled = (virgo.config['upgrade'] == 'enabled')
+  if argv.args.g then
+    options.upgrades_enabled = true
   end
 
-  Setup:new(argv, options.configFile, agent):run()
+  async.series({
+    function(callback)
+      local opts = {}
+      opts.skip = (options.upgrades_enabled == false)
+      upgrade.attempt(opts, function(err)
+        if err then
+          logging.log(logging.ERROR, fmt("Error upgrading: %s", tostring(err)))
+        end
+        callback()
+      end)
+    end,
+    function(callback)
+      local agent = MonitoringAgent:new(options, types)
+      if argv.args.u then
+        Setup:new(argv, options.configFile, agent):run()
+      else
+        agent:start(options)
+      end
+      callback()
+    end
+  })
 end
 
 return Entry
